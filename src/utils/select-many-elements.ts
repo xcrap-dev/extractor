@@ -1,23 +1,12 @@
-import { DOMParser as XmldomParser } from "xmldom"
 import { HTMLElement } from "node-html-parser"
-import htmlParser from "node-html-parser"
-import * as xpathLib from "xpath"
 
 import { BuildedQuery } from "../query-builders"
+import { selectXpath } from "./xpath"
 
-export function selectManyElements(query: BuildedQuery, root: HTMLElement) {
+export function selectManyElements(query: BuildedQuery, root: HTMLElement): HTMLElement[] {
     if (query.type === "css") {
         return root.querySelectorAll(query.value)
-    } else {
-        const doc = new XmldomParser({
-            locator: {},
-            errorHandler: {
-                warning: () => {},
-            },
-        }).parseFromString(root.toString())
-
-        const elements = xpathLib.select(query.value, doc) as Node[]
-
-        return elements.map((element) => htmlParser.parse(element.toString()).childNodes[0] as HTMLElement)
     }
+
+    return selectXpath(query.value, root)
 }

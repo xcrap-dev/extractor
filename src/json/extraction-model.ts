@@ -56,7 +56,6 @@ export class JsonExtractionModel<S extends JsonExtractionModelShape> implements 
     async extractNestedValue(value: JsonExtractionModelShapeValue, root: any) {
         const extractedData = jmespath.search(root, value.query)
         const model = value.model!
-        const modelIsJsonExtractor = model.constructor.name === JsonExtractionModel.name
 
         if (extractedData === null && value.default !== undefined) {
             return value.default
@@ -67,31 +66,29 @@ export class JsonExtractionModel<S extends JsonExtractionModelShape> implements 
                 throw new Error(`Expected an array for multiple values, but got ${typeof extractedData}`)
             }
 
-            if (value.limit !== undefined) {
-                extractedData.splice(value.limit)
-            }
+            const items = value.limit !== undefined ? extractedData.slice(0, value.limit) : extractedData
 
-            if (!modelIsJsonExtractor) {
-                if (extractedData.some((item) => typeof item !== "string")) {
-                    throw new Error(
-                        `Expected an array of strings for model parsing, but got ${typeof extractedData[0]}`,
-                    )
-                }
-
-                return await Promise.all(extractedData.map((item) => model.extract(JSON.stringify(item))))
-            }
-        } else {
-            if (!modelIsJsonExtractor && typeof extractedData !== "string") {
-                throw new Error(`Expected a string for model parsing, but got ${typeof extractedData}`)
-            }
-
-            if (!modelIsJsonExtractor) {
-                return await model.extract(extractedData)
-            }
-
-            return await model.extract(JSON.stringify(extractedData))
+            return await Promise.all(items.map((item) => model.extract(this.toModelSource(model, item))))
         }
 
-        return extractedData
+        return await model.extract(this.toModelSource(model, extractedData))
+    }
+
+    /**
+     * JSON models receive the value serialized as JSON. Other models (HTML, Markdown, …) receive
+     * the value itself, which must be a string such as an HTML snippet stored in the JSON.
+     */
+    protected toModelSource(model: ExtractionModel, value: unknown): string {
+        const isJsonModel = model instanceof JsonExtractionModel || model.constructor.name === JsonExtractionModel.name
+
+        if (isJsonModel) {
+            return JSON.stringify(value)
+        }
+
+        if (typeof value !== "string") {
+            throw new Error(`Expected a string for model parsing, but got ${typeof value}`)
+        }
+
+        return value
     }
 }
